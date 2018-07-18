@@ -1,0 +1,35 @@
+#!/bin/sh
+
+minutes=5
+
+lock_file=/tmp/wan_watchdog.lock
+watchdog_file=/jffs/scripts/wan-watchdog.sh
+
+cat << EOF > $watchdog_file
+#!/bin/sh
+
+intadr="8.8.8.8"
+retest=10
+
+logger "Testing the Internet connectivity: ping -c1 \$intadr"
+
+i=\$retest
+while ! ping -c1 \$intadr
+do
+  logger "Could not reach \$intadr, Attempts: \$i"
+  i=\$((\$i-1))
+  if [ \$i -lt 1 ]
+  then
+    logger "Failed test to \$intadr, Renewing DHCP..."
+    killall -SIGUSR2 udhcpc
+    sleep 2
+    killall -SIGUSR1 udhcpc
+    break 1
+  fi
+  sleep 2
+done
+EOF
+
+
+chmod a+rx $watchdog_file
+cru a wan_watchdog "*/$minutes * * * * flock $lock_file $watchdog_file"
